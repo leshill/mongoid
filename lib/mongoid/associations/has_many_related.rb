@@ -1,16 +1,15 @@
 # encoding: utf-8
 module Mongoid #:nodoc:
   module Associations #:nodoc:
-    class HasManyRelated < DelegateClass(Array) #:nodoc:
-
-      attr_reader :klass
+    class HasManyRelated #:nodoc:
+      include Proxy
 
       # Appends the object to the +Array+, setting its parent in
       # the process.
       def <<(*objects)
         objects.flatten.each do |object|
           object.send("#{@foreign_key}=", @parent.id)
-          @documents << object
+          @target << object
           object.save unless @parent.new_record?
         end
       end
@@ -23,7 +22,7 @@ module Mongoid #:nodoc:
       def build(attributes = {})
         name = @parent.class.to_s.underscore
         object = @klass.instantiate(attributes.merge(name => @parent))
-        @documents << object
+        @target << object
         object
       end
 
@@ -46,8 +45,9 @@ module Mongoid #:nodoc:
 
       # Finds a document in this association.
       # If an id is passed, will return the document for that id.
-      def find(id)
-        @klass.find(id)
+      def find(*args)
+        args[1][:conditions].merge!(@foreign_key.to_sym => @parent.id) if args.size > 1
+        @klass.find(*args)
       end
 
       # Initializing a related association only requires looking up the objects
@@ -57,11 +57,11 @@ module Mongoid #:nodoc:
       #
       # document: The +Document+ that contains the relationship.
       # options: The association +Options+.
-      def initialize(document, options)
+      def initialize(document, options, target = nil)
         @parent, @klass = document, options.klass
         @foreign_key = document.class.to_s.foreign_key
-        @documents = @klass.all(:conditions => { @foreign_key => document.id })
-        super(@documents)
+        @target = target || @klass.all(:conditions => { @foreign_key => document.id })
+        extends(options)
       end
 
       # Delegates to <<
@@ -76,8 +76,8 @@ module Mongoid #:nodoc:
         #
         # document: The +Document+ that contains the relationship.
         # options: The association +Options+.
-        def instantiate(document, options)
-          new(document, options)
+        def instantiate(document, options, target = nil)
+          new(document, options, target)
         end
 
         # Returns the macro used to create the association.
@@ -97,9 +97,10 @@ module Mongoid #:nodoc:
         # Example:
         #
         # <tt>RelatesToOne.update(game, person, options)</tt>
-        def update(related, document, options)
+        def update(target, document, options)
           name = document.class.to_s.underscore
-          related.each { |child| child.send("#{name}=", document) }
+          target.each { |child| child.send("#{name}=", document) }
+          instantiate(document, options, target)
         end
       end
 

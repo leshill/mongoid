@@ -169,26 +169,6 @@ describe Mongoid::Document do
     context "when the document is embedded" do
 
       it "returns true" do
-        Address.embedded.should be_true
-      end
-
-    end
-
-    context "when the document is not embedded" do
-
-      it "returns false" do
-        Person.embedded.should be_false
-      end
-
-    end
-
-  end
-
-  describe "#embedded?" do
-
-    context "when the document is embedded" do
-
-      it "returns true" do
         address = Address.new
         address.embedded.should be_true
       end
@@ -215,6 +195,26 @@ describe Mongoid::Document do
 
   end
 
+  describe ".hereditary" do
+
+    context "when the class is part of a hierarchy" do
+
+      it "returns true" do
+        Canvas.hereditary.should be_true
+      end
+
+    end
+
+    context "when the class is not part of a hierarchy" do
+
+      it "returns false" do
+        Game.hereditary.should be_false
+      end
+
+    end
+
+  end
+
   describe ".human_name" do
 
     it "returns the class name underscored and humanized" do
@@ -223,68 +223,7 @@ describe Mongoid::Document do
 
   end
 
-  describe ".instantiate" do
-
-    before do
-      @attributes = { :_id => "1", :_type => "Person", :title => "Sir", :age => 30 }
-      @person = Person.new(@attributes)
-    end
-
-    it "sets the attributes directly" do
-      Person.instantiate(@attributes).should == @person
-    end
-
-  end
-
-  describe ".key" do
-
-    context "when key is single field" do
-
-      before do
-        Address.key :street
-        @address = Address.new(:street => "Testing Street Name")
-        @address.expects(:collection).returns(@collection)
-        @collection.expects(:save)
-      end
-
-      it "adds the callback for primary key generation" do
-        @address.save
-        @address.id.should == "testing-street-name"
-      end
-
-    end
-
-    context "when key is composite" do
-
-      before do
-        Address.key :street, :post_code
-        @address = Address.new(:street => "Testing Street Name", :post_code => "94123")
-        @address.expects(:collection).returns(@collection)
-        @collection.expects(:save)
-      end
-
-      it "combines all fields" do
-        @address.save
-        @address.id.should == "testing-street-name-94123"
-      end
-
-    end
-
-    context "when key is on a subclass" do
-
-      before do
-        Firefox.key :name
-      end
-
-      it "sets the key for the entire hierarchy" do
-        Canvas.primary_key.should == [:name]
-      end
-
-    end
-
-  end
-
-  describe "#new" do
+  describe ".initialize" do
 
     context "when passed a block" do
 
@@ -305,6 +244,21 @@ describe Mongoid::Document do
         person = Person.new
         person.attributes.empty?.should be_false
         person.age.should == 100
+        person.blood_alcohol_content.should == 0.0
+      end
+
+    end
+
+    context "with nil attributes" do
+
+      before do
+        @person = Person.new(nil)
+      end
+
+      it "sets default attributes" do
+        @person.attributes.empty?.should be_false
+        @person.age.should == 100
+        @person.blood_alcohol_content.should == 0.0
       end
 
     end
@@ -356,6 +310,83 @@ describe Mongoid::Document do
 
       it "sets the type" do
         Person.new._type.should == "Person"
+      end
+
+    end
+
+  end
+
+  describe ".instantiate" do
+
+    context "when attributes have an id" do
+
+      before do
+        @attributes = { "_id" => "1", "_type" => "Person", "title" => "Sir", "age" => 30 }
+      end
+
+      it "sets the attributes directly" do
+        person = Person.instantiate(@attributes)
+        person._id.should == "1"
+        person._type.should == "Person"
+        person.title.should == "Sir"
+        person.age.should == 30
+      end
+
+    end
+
+    context "with nil attributes" do
+
+      it "sets the attributes directly" do
+        person = Person.instantiate(nil)
+        person.id.should_not be_nil
+      end
+
+    end
+
+  end
+
+  describe ".key" do
+
+    context "when key is single field" do
+
+      before do
+        Address.key :street
+        @address = Address.new(:street => "Testing Street Name")
+        @address.expects(:collection).returns(@collection)
+        @collection.expects(:save)
+      end
+
+      it "adds the callback for primary key generation" do
+        @address.save
+        @address.id.should == "testing-street-name"
+      end
+
+    end
+
+    context "when key is composite" do
+
+      before do
+        Address.key :street, :post_code
+        @address = Address.new(:street => "Testing Street Name", :post_code => "94123")
+        @address.expects(:collection).returns(@collection)
+        @collection.expects(:save)
+      end
+
+      it "combines all fields" do
+        @address.save
+        @address.id.should == "testing-street-name-94123"
+      end
+
+    end
+
+    context "when key is on a subclass" do
+
+      before do
+        Firefox.key :name
+      end
+
+      it "sets the key for the entire hierarchy" do
+        Canvas.primary_key.should == [:name]
       end
 
     end

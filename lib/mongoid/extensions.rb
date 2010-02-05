@@ -1,5 +1,6 @@
 # encoding: utf-8
 require "mongoid/extensions/array/accessors"
+require "mongoid/extensions/array/aliasing"
 require "mongoid/extensions/array/assimilation"
 require "mongoid/extensions/array/conversions"
 require "mongoid/extensions/array/parentization"
@@ -11,9 +12,11 @@ require "mongoid/extensions/hash/accessors"
 require "mongoid/extensions/hash/assimilation"
 require "mongoid/extensions/hash/conversions"
 require "mongoid/extensions/hash/criteria_helpers"
+require "mongoid/extensions/hash/scoping"
 require "mongoid/extensions/integer/conversions"
 require "mongoid/extensions/nil/assimilation"
 require "mongoid/extensions/object/conversions"
+require "mongoid/extensions/proc/scoping"
 require "mongoid/extensions/string/conversions"
 require "mongoid/extensions/string/inflections"
 require "mongoid/extensions/symbol/inflections"
@@ -46,6 +49,7 @@ class Hash #:nodoc
   include Mongoid::Extensions::Hash::Accessors
   include Mongoid::Extensions::Hash::Assimilation
   include Mongoid::Extensions::Hash::CriteriaHelpers
+  include Mongoid::Extensions::Hash::Scoping
   extend Mongoid::Extensions::Hash::Conversions
 end
 
@@ -61,12 +65,17 @@ class Object #:nodoc:
   include Mongoid::Extensions::Object::Conversions
 end
 
+class Proc #:nodoc:
+  include Mongoid::Extensions::Proc::Scoping
+end
+
 class String #:nodoc
   include Mongoid::Extensions::String::Inflections
   extend Mongoid::Extensions::String::Conversions
 end
 
 class Symbol #:nodoc
+  remove_method :size if instance_methods.include? :size # temporal fix for ruby 1.9
   include Mongoid::Extensions::Symbol::Inflections
 end
 

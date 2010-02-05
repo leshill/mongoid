@@ -7,13 +7,19 @@ module Mongoid #:nodoc:
         include InstanceMethods
         extend ClassMethods
 
-        cattr_accessor :_collection, :collection_name, :embedded, :primary_key
+        cattr_accessor \
+          :_collection,
+          :collection_name,
+          :embedded,
+          :primary_key,
+          :hereditary
 
         self.embedded = false
+        self.hereditary = false
         self.collection_name = self.name.collectionize
 
         attr_accessor :association_name, :_parent
-        attr_reader :attributes, :new_record
+        attr_reader :new_record
 
         delegate :collection, :embedded, :primary_key, :to => "self.class"
       end
@@ -31,6 +37,12 @@ module Mongoid #:nodoc:
         add_indexes; self._collection
       end
 
+      # Perform default behavior but mark the hierarchy as being hereditary.
+      def inherited(subclass)
+        super(subclass)
+        self.hereditary = true
+      end
+
       # Returns a human readable version of the class.
       #
       # Example:
@@ -46,14 +58,14 @@ module Mongoid #:nodoc:
       # Example:
       #
       # <tt>Person.instantiate(:title => "Sir", :age => 30)</tt>
-      def instantiate(attrs = {}, allocating = false)
-        attributes = attrs.with_indifferent_access
-        if attributes[:_id] || allocating
+      def instantiate(attrs = nil, allocating = false)
+        attributes = attrs || {}
+        if attributes["_id"] || allocating
           document = allocate
           document.instance_variable_set(:@attributes, attributes)
           return document
         else
-          return new(attributes)
+          return new(attrs)
         end
       end
 
@@ -72,7 +84,7 @@ module Mongoid #:nodoc:
       #   end
       def key(*fields)
         self.primary_key = fields
-        before_save :generate_key
+        before_save :identify
       end
 
       # Macro for setting the collection name to store in.
@@ -97,7 +109,7 @@ module Mongoid #:nodoc:
       # all attributes excluding timestamps on the object.
       def ==(other)
         return false unless other.is_a?(Document)
-        @attributes.except(:modified_at).except(:created_at) ==
+        attributes.except(:modified_at).except(:created_at) ==
           other.attributes.except(:modified_at).except(:created_at)
       end
 
@@ -119,10 +131,20 @@ module Mongoid #:nodoc:
         parentize(parent, options.name); notify; self
       end
 
+      # Return the attributes hash with indifferent access.
+      def attributes
+        @attributes.with_indifferent_access
+      end
+
       # Clone the current +Document+. This will return all attributes with the
       # exception of the document's id and versions.
       def clone
-        self.class.instantiate(@attributes.except(:_id).except(:versions).dup, true)
+        self.class.instantiate(@attributes.except("_id").except("versions").dup, true)
+      end
+
+      # Generate an id for this +Document+.
+      def identify
+        Identity.create(self)
       end
 
       # Instantiate a new +Document+, setting the Document's attributes if
@@ -139,17 +161,18 @@ module Mongoid #:nodoc:
       # Example:
       #
       # <tt>Person.new(:title => "Mr", :age => 30)</tt>
-      def initialize(attrs = {})
-        @attributes = {}.with_indifferent_access
-        process(defaults.merge(attrs))
+      def initialize(attrs = nil)
+        @attributes = {}
+        process(attrs)
+        @attributes = attributes_with_defaults(@attributes)
         @new_record = true if id.nil?
         document = yield self if block_given?
-        generate_key; generate_type; document
+        identify
       end
 
       # Returns the class name plus its attributes.
       def inspect
-        attrs = fields.map { |name, field| "#{name}: #{@attributes[name] || 'nil'}" } * ", "
+        attrs = fields.map { |name, field| "#{name}: #{@attributes[name].inspect}" } * ", "
         "#<#{self.class.name} _id: #{id}, #{attrs}>"
       end
 
@@ -189,20 +212,25 @@ module Mongoid #:nodoc:
       # <tt>address.parentize(person, :addresses)</tt>
       def parentize(object, association_name)
         self._parent = object
-        self.association_name = association_name
+        self.association_name = association_name.to_s
         add_observer(object)
+      end
+
+      # Return the attributes hash.
+      def raw_attributes
+        @attributes
       end
 
       # Reloads the +Document+ attributes from the database.
       def reload
-        @attributes = collection.find_one(:_id => id).with_indifferent_access
+        @attributes = collection.find_one(:_id => id)
       end
 
       # Remove a child document from this parent +Document+. Will reset the
       # memoized association and notify the parent of the change.
       def remove(child)
         name = child.association_name
-        reset(name) { @attributes.remove(name, child.attributes) }
+        reset(name) { @attributes.remove(name, child.raw_attributes) }
         notify
       end
 
@@ -226,8 +254,8 @@ module Mongoid #:nodoc:
       # Example:
       #
       # <tt>person.to_json</tt>
-      def to_json
-        @attributes.to_json
+      def to_json(options = nil)
+        attributes.to_json(options)
       end
 
       # Returns the id of the Document, used in Rails compatibility.
@@ -252,29 +280,19 @@ module Mongoid #:nodoc:
       # there is any.
       def update(child, clear = false)
         name = child.association_name
-        clear ? @attributes.delete(name) : @attributes.insert(name, child.attributes)
+        attrs = child.instance_variable_get(:@attributes)
+        clear ? @attributes.delete(name) : @attributes.insert(name, attrs)
         notify
       end
 
       protected
-      def generate_key
-        if primary_key
-          @attributes[:_id] = extract_keys.join(" ").identify
-        else
-          @attributes[:_id] = Mongo::ObjectID.new.to_s unless id
+      # apply default values to attributes - calling procs as required
+      def attributes_with_defaults(attributes = {})
+        default_values = defaults.merge(attributes)
+        default_values.each_pair do |key, val|
+          default_values[key] = val.call if val.respond_to?(:call)
         end
       end
-
-      def generate_type
-        @attributes[:_type] ||= self.class.name
-      end
-
-      def extract_keys
-        primary_key.collect { |key| @attributes[key] }.reject { |val| val.nil? }
-      end
-
     end
-
   end
-
 end

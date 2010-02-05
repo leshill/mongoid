@@ -2,7 +2,17 @@ require "spec_helper"
 
 describe Mongoid::Associations::HasManyRelated do
 
-  let(:options) { Mongoid::Associations::Options.new(:name => :posts) }
+  let(:block) do
+    Proc.new do
+      def extension
+        "Testing"
+      end
+    end
+  end
+
+  let(:options) do
+    Mongoid::Associations::Options.new(:name => :posts, :extend => block)
+  end
 
   describe "#<<" do
 
@@ -193,24 +203,75 @@ describe Mongoid::Associations::HasManyRelated do
 
     end
 
+    context "when finding all with conditions" do
+
+      before do
+        @post = stub
+      end
+
+      it "passes the conditions to the association class" do
+        Post.expects(:find).with(:all, :conditions => { :title => "Testing", :person_id => @parent.id }).returns([@post])
+        posts = @association.find(:all, :conditions => { :title => "Testing" })
+        posts.should == [@post]
+      end
+
+    end
+
+    context "when finding first with conditions" do
+
+      before do
+        @post = stub
+      end
+
+      it "passes the conditions to the association class" do
+        Post.expects(:find).with(:first, :conditions => { :title => "Testing", :person_id => @parent.id }).returns(@post)
+        post = @association.find(:first, :conditions => { :title => "Testing" })
+        post.should == @post
+      end
+
+    end
+
+    context "when finding last with conditions" do
+
+      before do
+        @post = stub
+      end
+
+      it "passes the conditions to the association class" do
+        Post.expects(:find).with(:last, :conditions => { :title => "Testing", :person_id => @parent.id }).returns(@post)
+        post = @association.find(:last, :conditions => { :title => "Testing" })
+        post.should == @post
+      end
+
+    end
+
   end
 
   describe ".initialize" do
 
+    before do
+      @document = Person.new
+      @criteria = stub
+      @first = stub(:person_id => @document.id)
+      @second = stub(:person_id => @document.id)
+      @related = [@first, @second]
+      Post.expects(:all).with(:conditions => { "person_id" => @document.id }).returns(@related)
+    end
+
     context "when related id has been set" do
 
-      before do
-        @document = Person.new
-        @criteria = stub
-        @first = stub(:person_id => @document.id)
-        @second = stub(:person_id => @document.id)
-        @related = [@first, @second]
-      end
-
       it "finds the object by id" do
-        Post.expects(:all).with(:conditions => { "person_id" => @document.id }).returns(@related)
         association = Mongoid::Associations::HasManyRelated.new(@document, options)
         association.should == @related
+      end
+
+    end
+
+    context "when the options have an extension" do
+
+      it "adds the extension module" do
+        association = Mongoid::Associations::HasManyRelated.new(@document, options)
+        association.extension.should == "Testing"
       end
 
     end
@@ -226,7 +287,7 @@ describe Mongoid::Associations::HasManyRelated do
       end
 
       it "delegates to new" do
-        Mongoid::Associations::HasManyRelated.expects(:new).with(@document, options)
+        Mongoid::Associations::HasManyRelated.expects(:new).with(@document, options, nil)
         association = Mongoid::Associations::HasManyRelated.instantiate(@document, options)
       end
 
@@ -317,7 +378,8 @@ describe Mongoid::Associations::HasManyRelated do
     end
 
     it "returns the related objects" do
-      Mongoid::Associations::HasManyRelated.update(@related, @parent, options).should == @related
+      @proxy = Mongoid::Associations::HasManyRelated.update(@related, @parent, options)
+      @proxy.target.should == @related
     end
 
   end

@@ -21,10 +21,16 @@ module Mongoid #:nodoc:
         def insert(key, attrs)
           elements = self[key]
           if elements
-            elements.update(attrs)
+            elements.merge!(attrs)
           else
             self[key] = key.singular? ? attrs : [attrs]
           end
+        end
+
+        # If a _type key exists in the hash, return the class for the value.
+        def klass
+          class_name = self["_type"]
+          class_name ? class_name.constantize : nil
         end
       end
     end

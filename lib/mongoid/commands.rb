@@ -62,7 +62,11 @@ module Mongoid #:nodoc:
       def save(validate = true)
         new = new_record?
         run_callbacks(:before_create) if new
-        saved = Save.execute(self, validate)
+        begin
+          saved = Save.execute(self, validate)
+        rescue Mongo::OperationFailure => e
+          errors.add(:mongoid, e.message)
+        end
         run_callbacks(:after_create) if new
         saved
       end
@@ -86,7 +90,7 @@ module Mongoid #:nodoc:
       #
       # <tt>document.update_attributes(:title => "Test")</tt>
       def update_attributes(attrs = {})
-        write_attributes(attrs); save
+        set_attributes(attrs); save
       end
 
       # Update the document attributes and persist the document to the
@@ -96,7 +100,13 @@ module Mongoid #:nodoc:
       #
       # <tt>document.update_attributes!(:title => "Test")</tt>
       def update_attributes!(attrs = {})
-        write_attributes(attrs); save!
+        set_attributes(attrs); save!
+      end
+
+      protected
+      def set_attributes(attrs = {})
+        run_callbacks(:before_update)
+        write_attributes(attrs)
       end
 
     end
@@ -113,7 +123,13 @@ module Mongoid #:nodoc:
       #
       # Returns: the +Document+.
       def create(attributes = {})
-        Create.execute(new(attributes))
+        document = new(attributes)
+        begin
+          Create.execute(document)
+        rescue Mongo::OperationFailure => e
+          document.errors.add(:mongoid, e.message)
+        end
+        document
       end
 
       # Create a new +Document+. This will instantiate a new document and save
@@ -126,9 +142,9 @@ module Mongoid #:nodoc:
       #
       # Returns: the +Document+.
       def create!(attributes = {})
-        document = Create.execute(new(attributes))
-        raise Errors::Validations.new(self.errors) unless document.errors.empty?
-        return document
+        document = Create.execute(new(attributes), true)
+        raise Errors::Validations.new(document.errors) unless document.errors.empty?
+        document
       end
 
       # Delete all documents given the supplied conditions. If no conditions

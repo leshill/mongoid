@@ -64,6 +64,20 @@ describe Mongoid::Commands do
 
     end
 
+    context "when the database raises an error" do
+
+      before do
+        @person = Person.new
+      end
+
+      it "returns false" do
+        Mongoid::Commands::Save.expects(:execute).raises(Mongo::OperationFailure.new("Operation Failed"))
+        @person.save
+        @person.errors.on(:mongoid).should == "Operation Failed"
+      end
+
+    end
+
   end
 
   describe "#save!" do
@@ -160,6 +174,25 @@ describe Mongoid::Commands do
       Person.create.should_not be_nil
     end
 
+    context "when the database raises an error" do
+
+      before do
+        @person = Person.new
+        Mongoid::Commands::Save.expects(:execute).raises(Mongo::OperationFailure.new("Operation Failed"))
+      end
+
+      it "returns the document with errors" do
+        person = Person.create
+        person.errors.on(:mongoid).should == "Operation Failed"
+      end
+
+      it "keeps the document's new record flag" do
+        person = Person.create
+        person.should be_a_new_record
+      end
+
+    end
+
   end
 
   describe ".create!" do
@@ -179,7 +212,7 @@ describe Mongoid::Commands do
       it "raises an error" do
         person = stub(:errors => stub(:empty? => false))
         Mongoid::Commands::Create.expects(:execute).returns(person)
-        lambda { Person.create! }.should raise_error
+        lambda { Person.create! }.should raise_error(Mongoid::Errors::Validations)
       end
 
     end

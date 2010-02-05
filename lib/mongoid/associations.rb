@@ -13,7 +13,7 @@ module Mongoid # :nodoc:
       base.class_eval do
         # Associations need to inherit down the chain.
         class_inheritable_accessor :associations
-        self.associations = {}.with_indifferent_access
+        self.associations = {}
 
         include InstanceMethods
         extend ClassMethods
@@ -59,14 +59,16 @@ module Mongoid # :nodoc:
       #     include Mongoid::Document
       #     belongs_to :person, :inverse_of => :addresses
       #   end
-      def belongs_to(name, options = {})
+      def belongs_to(name, options = {}, &block)
         unless options.has_key?(:inverse_of)
           raise Errors::InvalidOptions.new("Options for belongs_to association must include :inverse_of")
         end
         self.embedded = true
         add_association(
           Associations::BelongsTo,
-          Associations::Options.new(options.merge(:name => name))
+          Associations::Options.new(
+            options.merge(:name => name, :extend => block)
+          )
         )
       end
 
@@ -84,11 +86,14 @@ module Mongoid # :nodoc:
       #     belongs_to_related :person
       #   end
       #
-      def belongs_to_related(name, options = {})
+      def belongs_to_related(name, options = {}, &block)
         field "#{name.to_s}_id"
+        index "#{name.to_s}_id" unless self.embedded
         add_association(
           Associations::BelongsToRelated,
-          Associations::Options.new(options.merge(:name => name))
+          Associations::Options.new(
+            options.merge(:name => name, :extend => block)
+          )
         )
       end
 
@@ -111,10 +116,12 @@ module Mongoid # :nodoc:
       #     include Mongoid::Document
       #     belongs_to :person, :inverse_of => :addresses
       #   end
-      def has_many(name, options = {})
+      def has_many(name, options = {}, &block)
         add_association(
           Associations::HasMany,
-          Associations::Options.new(options.merge(:name => name))
+          Associations::Options.new(
+            options.merge(:name => name, :extend => block)
+          )
         )
       end
 
@@ -132,10 +139,12 @@ module Mongoid # :nodoc:
       #     has_many_related :posts
       #   end
       #
-      def has_many_related(name, options = {})
+      def has_many_related(name, options = {}, &block)
         add_association(
           Associations::HasManyRelated,
-          Associations::Options.new(options.merge(:name => name, :parent_key => self.name.foreign_key))
+          Associations::Options.new(
+            options.merge(:name => name, :parent_key => self.name.foreign_key, :extend => block)
+          )
         )
         before_save do |document|
           document.update_associations(name)
@@ -161,8 +170,10 @@ module Mongoid # :nodoc:
       #     include Mongoid::Document
       #     belongs_to :person
       #   end
-      def has_one(name, options = {})
-        opts = Associations::Options.new(options.merge(:name => name))
+      def has_one(name, options = {}, &block)
+        opts = Associations::Options.new(
+          options.merge(:name => name, :extend => block)
+        )
         type = Associations::HasOne
         add_association(type, opts)
         add_builder(type, opts)
@@ -182,10 +193,12 @@ module Mongoid # :nodoc:
       #     include Mongoid::Document
       #     has_one_related :game
       #   end
-      def has_one_related(name, options = {})
+      def has_one_related(name, options = {}, &block)
         add_association(
           Associations::HasOneRelated,
-          Associations::Options.new(options.merge(:name => name, :parent_key => self.name.foreign_key))
+          Associations::Options.new(
+            options.merge(:name => name, :parent_key => self.name.foreign_key, :extend => block)
+          )
         )
         before_save do |document|
           document.update_association(name)
@@ -203,7 +216,7 @@ module Mongoid # :nodoc:
       #
       # <tt>Person.reflect_on_association(:addresses)</tt>
       def reflect_on_association(name)
-        association = associations[name]
+        association = associations[name.to_s]
         association ? association.macro : nil
       end
 
@@ -212,7 +225,7 @@ module Mongoid # :nodoc:
       # then adds the accessors for the association. The defined setters and
       # getters for the associations will perform the necessary memoization.
       def add_association(type, options)
-        name = options.name
+        name = options.name.to_s
         associations[name] = type
         define_method(name) do
           memoized(name) { type.instantiate(self, options) }
@@ -225,16 +238,16 @@ module Mongoid # :nodoc:
       # Adds a builder for a has_one association. This comes in the form of
       # build_name(attributes)
       def add_builder(type, options)
-        name = options.name
+        name = options.name.to_s
         define_method("build_#{name}") do |attrs|
-          reset(name) { type.new(self, attrs, options) }
+          reset(name) { type.new(self, attrs.stringify_keys, options) }
         end
       end
 
       # Adds a creator for a has_one association. This comes in the form of
       # create_name(attributes)
       def add_creator(type, options)
-        name = options.name
+        name = options.name.to_s
         define_method("create_#{name}") do |attrs|
           document = send("build_#{name}", attrs)
           document.save; document

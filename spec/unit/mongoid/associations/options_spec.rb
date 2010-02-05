@@ -10,7 +10,65 @@ describe Mongoid::Associations::Options do
     end
 
     it "returns the association name" do
-      @options.name.should == :addresses
+      @options.name.should == "addresses"
+    end
+
+  end
+
+  describe "#extend" do
+
+    context "when extension exists" do
+
+      before do
+        @attributes = { :extend => lambda { "Test" } }
+        @options = Mongoid::Associations::Options.new(@attributes)
+      end
+
+      it "returns the proc" do
+        @options.extension.should == @attributes[:extend]
+      end
+
+    end
+
+    context "when extension doesnt exist" do
+
+      before do
+        @options = Mongoid::Associations::Options.new({})
+      end
+
+      it "returns nil" do
+        @options.extension.should be_nil
+      end
+
+    end
+
+  end
+
+  describe "extension?" do
+
+    context "when extension exists" do
+
+      before do
+        @attributes = { :extend => lambda { "Test" } }
+        @options = Mongoid::Associations::Options.new(@attributes)
+      end
+
+      it "returns true" do
+        @options.extension?.should be_true
+      end
+
+    end
+
+    context "when extension doesnt exist" do
+
+      before do
+        @options = Mongoid::Associations::Options.new({})
+      end
+
+      it "returns false" do
+        @options.extension?.should be_false
+      end
+
     end
 
   end

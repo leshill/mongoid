@@ -21,7 +21,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 require "rubygems"
 
-gem "activesupport", ">= 2.2.2"
+gem "activesupport", ">= 2.2.2", "<3.0.pre"
 gem "mongo", ">= 0.18.2"
 gem "durran-validatable", ">= 2.0.1"
 gem "leshill-will_paginate", ">= 2.3.11"
@@ -43,16 +43,19 @@ require "mongoid/attributes"
 require "mongoid/callbacks"
 require "mongoid/commands"
 require "mongoid/config"
-require "mongoid/complex_criterion"
+require "mongoid/contexts"
 require "mongoid/criteria"
-require "mongoid/named_scopes"
 require "mongoid/extensions"
 require "mongoid/errors"
-require "mongoid/fields/field"
+require "mongoid/field"
 require "mongoid/fields"
 require "mongoid/finders"
+require "mongoid/identity"
 require "mongoid/indexes"
+require "mongoid/matchers"
 require "mongoid/memoization"
+require "mongoid/named_scope"
+require "mongoid/scope"
 require "mongoid/timestamps"
 require "mongoid/versioning"
 require "mongoid/components"
@@ -61,10 +64,24 @@ require "mongoid/document"
 module Mongoid #:nodoc
 
   class << self
-    #direct all calls to the configuration
-    def method_missing(name, *args)
-      Config.instance.send(name, *args)
+
+    delegate \
+      :allow_dynamic_fields,
+      :allow_dynamic_fields=,
+      :database,
+      :database=,
+      :persist_in_safe_mode,
+      :persist_in_safe_mode=,
+      :raise_not_found_error,
+      :raise_not_found_error=,
+      :temp_collection_size,
+      :temp_collection_size=, :to => :configure
+
+    def configure
+      config = Config.instance
+      block_given? ? yield(config) : config
     end
+
   end
 
 end

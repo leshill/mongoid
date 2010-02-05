@@ -113,6 +113,20 @@ describe Mongoid::Associations do
       code.phone_number.should == phone_number
     end
 
+    context "when adding an anonymous extension" do
+
+      before do
+        @person = Person.new(:title => "Dr")
+        @address = Address.new(:street => "Clarkenwell Road")
+        @person.addresses << @address
+      end
+
+      it "defines the method on the association" do
+        @address.addressable.extension.should == "Testing"
+      end
+
+    end
+
     context "when inverse_of not supplied" do
 
       it "raises an error" do
@@ -254,6 +268,15 @@ describe Mongoid::Associations do
       person.should respond_to(:addresses=)
     end
 
+    context "when adding an anonymous extension" do
+
+      it "defines the method on the association" do
+        person = Person.new
+        person.addresses.extension.should == "Testing"
+      end
+
+    end
+
     context "when setting the association directly" do
 
       before do
@@ -330,6 +353,15 @@ describe Mongoid::Associations do
       @person.should respond_to(:create_name)
     end
 
+    context "when adding an anonymous extension" do
+
+      it "defines the method on the association" do
+        @person.name = Name.new(:first_name => "Richard")
+        @person.name.extension.should == "Testing"
+      end
+
+    end
+
     context "when setting the association directly" do
 
       before do
@@ -385,12 +417,23 @@ describe Mongoid::Associations do
       @game.should respond_to(:person)
     end
 
+    context "when document is root level" do
+
+      it "puts an index on the foreign key" do
+        Game.expects(:index).with("person_id")
+        Game.belongs_to_related :person
+      end
+
+    end
+
   end
 
   describe ".has_one_related" do
 
     before do
       @person = Person.new
+      @game = Game.new
+      @person.game = @game
     end
 
     it "creates a getter for the relationship" do
@@ -401,13 +444,36 @@ describe Mongoid::Associations do
       @person.should respond_to(:game=)
     end
 
+    context "when adding an anonymous extension" do
+
+      it "defines the method on the association" do
+        @person.game.extension.should == "Testing"
+      end
+
+    end
+
   end
 
   describe ".has_many_related" do
 
-    it "creates a getter and setter for the relationship" do
+    it "creates a getter for the association" do
       Person.new.should respond_to(:posts)
+    end
+
+    it "creates a setter for the association" do
       Person.new.should respond_to(:posts=)
+    end
+
+    context "when adding an anonymous extension" do
+
+      before do
+        @person = Person.new
+      end
+
+      it "defines the method on the association" do
+        @person.posts.extension.should == "Testing"
+      end
+
     end
 
   end

@@ -11,11 +11,12 @@ module Mongoid #:nodoc
         include Commands
         include Fields
         include Indexes
+        include Matchers
         include Memoization
         include Observable
         include Validatable
         extend Finders
-        extend NamedScopes
+        extend NamedScope
       end
     end
   end

@@ -3,16 +3,19 @@ require "spec_helper"
 describe Mongoid::Associations::HasMany do
 
   before do
-    @attributes = { :addresses => [
-      { :_id => "street-1", :street => "Street 1" },
-      { :_id => "street-2", :street => "Street 2" } ] }
-    @document = stub(:attributes => @attributes, :add_observer => true, :update => true)
+    @attributes = { "addresses" => [
+      { "_id" => "street-1", "street" => "Street 1", "state" => "CA" },
+      { "_id" => "street-2", "street" => "Street 2" } ] }
+    @document = stub(:raw_attributes => @attributes, :add_observer => true, :update => true)
   end
 
   describe "#[]" do
 
     before do
-      @association = Mongoid::Associations::HasMany.new(@document, Mongoid::Associations::Options.new(:name => :addresses))
+      @association = Mongoid::Associations::HasMany.new(
+        @document,
+        Mongoid::Associations::Options.new(:name => :addresses)
+      )
     end
 
     context "when the index is present in the association" do
@@ -59,6 +62,20 @@ describe Mongoid::Associations::HasMany do
   end
 
   describe "#build" do
+
+    context "setting the parent relationship" do
+
+      before do
+        @person = Person.new
+      end
+
+      it "happens before any other operation" do
+        address = @person.addresses.build(:set_parent => true, :street => "Madison Ave")
+        address._parent.should == @person
+        @person.addresses.first.should == address
+      end
+
+    end
 
     context "when a type is not provided" do
 
@@ -183,7 +200,10 @@ describe Mongoid::Associations::HasMany do
   describe "#find" do
 
     before do
-      @association = Mongoid::Associations::HasMany.new(@document, Mongoid::Associations::Options.new(:name => :addresses))
+      @association = Mongoid::Associations::HasMany.new(
+        @document,
+        Mongoid::Associations::Options.new(:name => :addresses)
+      )
     end
 
     context "when finding all" do
@@ -242,18 +262,43 @@ describe Mongoid::Associations::HasMany do
 
   describe "#initialize" do
 
-    before do
-      @canvas = stub(:attributes => { :shapes => [{ :_type => "Circle", :radius => 5 }] }, :update => true)
-      @association = Mongoid::Associations::HasMany.new(
-        @canvas,
-        Mongoid::Associations::Options.new(:name => :shapes)
-      )
+    context "when no extension exists" do
+
+      before do
+        @canvas = stub(:raw_attributes => { "shapes" => [{ "_type" => "Circle", "radius" => 5 }] }, :update => true)
+        @association = Mongoid::Associations::HasMany.new(
+          @canvas,
+          Mongoid::Associations::Options.new(:name => :shapes)
+        )
+      end
+
+      it "creates the classes based on their types" do
+        circle = @association.first
+        circle.should be_a_kind_of(Circle)
+        circle.radius.should == 5
+      end
+
     end
 
-    it "creates the classes based on their types" do
-      circle = @association.first
-      circle.should be_a_kind_of(Circle)
-      circle.radius.should == 5
+    context "when an extension is in the options" do
+
+      before do
+        @person = Person.new
+        @block = Proc.new do
+          def extension
+            "Testing"
+          end
+        end
+        @association = Mongoid::Associations::HasMany.new(
+          @person,
+          Mongoid::Associations::Options.new(:name => :addresses, :extend => @block)
+        )
+      end
+
+      it "adds the extension module" do
+        @association.extension.should == "Testing"
+      end
+
     end
 
   end
@@ -308,6 +353,52 @@ describe Mongoid::Associations::HasMany do
 
   end
 
+  describe "#method_missing" do
+
+    context "when the association class has a criteria class method" do
+
+      before do
+        @association = Mongoid::Associations::HasMany.new(
+          @document,
+          Mongoid::Associations::Options.new(:name => :addresses)
+        )
+      end
+
+      it "returns the criteria" do
+        @association.california.should be_a_kind_of(Mongoid::Criteria)
+      end
+
+      it "sets the documents on the criteria" do
+        criteria = @association.california
+        criteria.documents.should == @association.entries
+      end
+
+      it "returns the scoped documents" do
+        addresses = @association.california
+        addresses.size.should == 1
+        addresses.first.should be_a_kind_of(Address)
+        addresses.first.state.should == "CA"
+      end
+
+    end
+
+    context "when no class method exists" do
+
+      before do
+        @association = Mongoid::Associations::HasMany.new(
+          @document,
+          Mongoid::Associations::Options.new(:name => :addresses)
+        )
+      end
+
+      it "delegates to the array" do
+        @association.entries.size.should == 2
+      end
+
+    end
+
+  end
+
   describe "#push" do
 
     before do
@@ -336,7 +427,11 @@ describe Mongoid::Associations::HasMany do
     before do
       @address = Address.new(:street => "Madison Ave")
       @person = Person.new(:title => "Sir")
-      Mongoid::Associations::HasMany.update([@address], @person, Mongoid::Associations::Options.new(:name => :addresses))
+      @association = Mongoid::Associations::HasMany.update(
+        [@address],
+        @person,
+        Mongoid::Associations::Options.new(:name => :addresses)
+      )
     end
 
     it "parentizes the child document" do
@@ -346,6 +441,10 @@ describe Mongoid::Associations::HasMany do
     it "sets the attributes of the child on the parent" do
       @person.attributes[:addresses].should ==
         [{ "_id" => "madison-ave", "street" => "Madison Ave", "_type" => "Address" }]
+    end
+
+    it "returns the association proxy" do
+      @association.target.size.should == 1
     end
 
   end

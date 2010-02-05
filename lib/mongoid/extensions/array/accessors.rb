@@ -6,9 +6,11 @@ module Mongoid #:nodoc:
         # If the attributes already exists in the array then they will be
         # updated, otherwise they will be appended.
         def update(attributes)
-          delete_if { |e| attributes[:_id] && (e[:_id] == attributes[:_id]) }
+          delete_if { |e| attributes["_id"] && (e["_id"] == attributes["_id"]) }
           self.<< attributes
         end
+
+        alias :merge! :update
       end
     end
   end

@@ -3,7 +3,7 @@ require "spec_helper"
 describe Mongoid::Document do
 
   before do
-    Mongoid.database.collection(:people).drop
+    Person.delete_all
   end
 
   context "when document contains a hash field" do
@@ -50,7 +50,7 @@ describe Mongoid::Document do
 
     before do
       5.times do |n|
-        Person.create(:title => "Sir")
+        Person.create(:title => "Sir", :ssn => "#{n}")
       end
     end
 
@@ -87,10 +87,10 @@ describe Mongoid::Document do
   context "chaining criteria scopes" do
 
     before do
-      @one = Person.create(:title => "Mr", :age => 55, :terms => true)
-      @two = Person.create(:title => "Sir", :age => 55, :terms => true)
-      @three = Person.create(:title => "Sir", :age => 35, :terms => true)
-      @four = Person.create(:title => "Sir", :age => 55, :terms => false)
+      @one = Person.create(:title => "Mr", :age => 55, :terms => true, :ssn => "q")
+      @two = Person.create(:title => "Sir", :age => 55, :terms => true, :ssn => "w")
+      @three = Person.create(:title => "Sir", :age => 35, :terms => true, :ssn => "e")
+      @four = Person.create(:title => "Sir", :age => 55, :terms => false, :ssn => "r")
     end
 
     it "finds by the merged criteria" do
@@ -120,7 +120,7 @@ describe Mongoid::Document do
 
       before do
         @person = Person.create(:title => "Lead")
-        @person.addresses.create(:street => "1st Street")
+        address = @person.addresses.create(:street => "1st Street")
         @person.create_name(:first_name => "Emmanuel")
         @person.save
       end
@@ -154,7 +154,7 @@ describe Mongoid::Document do
     context "when the document is not found" do
 
       it "creates a new document" do
-        person = Person.find_or_create_by(:title => "Senorita")
+        person = Person.find_or_create_by(:title => "Senorita", :ssn => "1234567")
         person.title.should == "Senorita"
         person.should_not be_a_new_record
       end
@@ -288,7 +288,7 @@ describe Mongoid::Document do
 
     before do
       10.times do |num|
-        Person.create(:title => "Test-#{num}")
+        Person.create(:title => "Test-#{num}", :ssn => "55#{num}")
       end
     end
 
